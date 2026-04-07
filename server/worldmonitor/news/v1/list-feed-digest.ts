@@ -49,6 +49,12 @@ function createTimeoutLinkedController(parentSignal: AbortSignal): {
   cleanup: () => void;
 } {
   const controller = new AbortController();
+
+  if (parentSignal.aborted) {
+    controller.abort();
+    return { controller, cleanup: () => {} };
+  }
+
   const timeout = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
   const onAbort = () => controller.abort();
   parentSignal.addEventListener('abort', onAbort, { once: true });
@@ -95,6 +101,8 @@ async function fetchAndParseRss(
     const cached = await cachedFetchJson<ParsedItem[]>(cacheKey, 3600, async () => {
       // Try direct fetch first
       let text = await fetchRssText(feed.url, signal).catch(() => null);
+
+      if (signal.aborted) return null;
 
       // Fallback: route through Railway relay (different IP, avoids Vercel blocks)
       if (!text) {
